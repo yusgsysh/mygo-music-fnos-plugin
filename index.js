@@ -12,6 +12,8 @@
 
 const SIGN_KEY = "NDzZTVxnRKP8Z0jXg1VAMonaG8akvh";
 const API_KEY = "6D5602D4-A342-4799-A0F0-BB795E7167D0";
+const API_PREFIX = "/music/api/v1";
+const COVER_PATH = "/static/cover";
 const PAGE = 50;
 
 // --- small helpers ---------------------------------------------------------
@@ -39,6 +41,10 @@ function drop(key) {
   host.storage.remove(key);
 }
 
+function sessionCookie(token = load("token")) {
+  return token ? "music-token=" + token : "";
+}
+
 // The listener may type either an origin or a full page such as
 // https://host/music/login. The API always lives at the origin under /music.
 function serverOrigin() {
@@ -58,12 +64,12 @@ function serverOrigin() {
 }
 
 function apiURL(path) {
-  return serverOrigin() + "/music/api/v1" + path;
+  return serverOrigin() + API_PREFIX + path;
 }
 
 function coverURL(id) {
   if (!id) return "";
-  return apiURL("/static/cover") + "?coverId=" + encodeURIComponent(id);
+  return apiURL(COVER_PATH) + "?coverId=" + encodeURIComponent(id);
 }
 
 function deviceId() {
@@ -220,8 +226,8 @@ async function rawRequest(method, path, params, body, withSession) {
   };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (withSession !== false) {
-    const token = load("token");
-    if (token) headers.Cookie = "music-token=" + token;
+    const cookie = sessionCookie();
+    if (cookie) headers.Cookie = cookie;
   }
 
   let res;
@@ -405,24 +411,27 @@ export async function imageHeaders({ url }) {
   let parsed, origin;
   try {
     parsed = new URL(url);
-    origin = serverOrigin();
+    origin = new URL(serverOrigin());
   } catch {
     return null;
   }
-  if (parsed.origin !== origin) return null;
-  if (!parsed.pathname.startsWith("/music/api/v1/static/cover")) return null;
+  // The app asks every plugin that may reach the host; answer only for ours.
+  if (parsed.host !== origin.host) return null;
+  // The cover endpoint, not a path that merely starts like it.
+  if (parsed.pathname !== API_PREFIX + COVER_PATH) return null;
+  if (!load("token")) return null;
 
-  if (!load("token")) {
-    try {
-      await ensureSession();
-    } catch {
-      return null;
-    }
+  // The app asks again when a cover is turned down, so check that the
+  // session still holds and let api() sign in again if it doesn't.
+  try {
+    await api("GET", "/user/me");
+  } catch {
+    return null;
   }
-  const token = load("token");
-  if (!token) return null;
+  const cookie = sessionCookie();
+  if (!cookie) return null;
   return {
-    headers: { Cookie: "music-token=" + token },
+    headers: { Cookie: cookie },
     maxAge: 600,
   };
 }
@@ -761,11 +770,11 @@ export async function stream({ id }) {
   if (!type) {
     throw fail("unavailable", "This file's format isn't supported by MyGo Music.");
   }
-  const token = load("token");
+  const cookie = sessionCookie();
   return {
     url: apiURL("/track/stream") + "?guid=" + encodeURIComponent(id),
     type,
-    headers: token ? { Cookie: "music-token=" + token } : undefined,
+    headers: cookie ? { Cookie: cookie } : undefined,
     size: typeof spec.size === "number" ? spec.size : undefined,
   };
 }

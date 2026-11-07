@@ -65,7 +65,7 @@ Settings > Plugins > + > Show Plugins Folder
 { headers: { Cookie: "music-token=..." }, maxAge: 600 }
 ```
 
-封面 URL 本身不包含 token，所以保存的歌曲不会留下会话凭证；token 更新后，下一次询问就会使用新的值。MyGo Music 会把请求头发送给该封面域名及其子域，并在收到 401/403 时重新询问插件。
+封面 URL 本身不包含 token，所以保存的歌曲不会留下会话凭证；token 更新后，下一次询问就会使用新的值。MyGo Music 会把请求头发送给该封面域名及其子域，并在收到 401/403 时重新询问插件；插件会在这时校验会话，过期则重新登录。
 
 ## 开发
 
