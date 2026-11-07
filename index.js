@@ -405,37 +405,6 @@ export function account() {
   return load("account") || null;
 }
 
-// MyGo Music asks a plugin for the headers to load a cover with, for a
-// service that keeps its pictures behind its session.
-export async function imageHeaders({ url }) {
-  let parsed, origin;
-  try {
-    parsed = new URL(url);
-    origin = new URL(serverOrigin());
-  } catch {
-    return null;
-  }
-  // The app asks every plugin that may reach the host; answer only for ours.
-  if (parsed.host !== origin.host) return null;
-  // The cover endpoint, not a path that merely starts like it.
-  if (parsed.pathname !== API_PREFIX + COVER_PATH) return null;
-  if (!load("token")) return null;
-
-  // The app asks again when a cover is turned down, so check that the
-  // session still holds and let api() sign in again if it doesn't.
-  try {
-    await api("GET", "/user/me");
-  } catch {
-    return null;
-  }
-  const cookie = sessionCookie();
-  if (!cookie) return null;
-  return {
-    headers: { Cookie: cookie },
-    maxAge: 600,
-  };
-}
-
 export function setSetting({ key }) {
   if (key === "server" || key === "username" || key === "password") {
     forgetSession();

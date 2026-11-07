@@ -55,17 +55,28 @@ Settings > Plugins > + > Show Plugins Folder
 
 - 密码会用 SHA-256 处理后发送，和网页版一致。
 - 播放地址是服务器上的原始文件地址，播放时带上会话 Cookie。
-- 专辑/艺术家/歌曲封面同样需要会话 Cookie。MyGo Music 从上游 commit [`b192406`](https://github.com/egoist/mygo-music/commit/b19240642f0cc08ddad12376b29afe513d5eda96) 起支持插件的 `imageHeaders({url})`；插件会为飞牛服务器的封面返回带 `music-token` 的 `Cookie`，因此封面可以正常显示。旧版 MyGo Music 会忽略这个导出，封面显示为占位图，播放、搜索、歌词和歌单不受影响。
+- 专辑/艺术家/歌曲封面同样需要会话 Cookie。MyGo Music 0.1.19 起支持 `plugin.json` 的 `requestHeaders`；插件会为飞牛服务器的封面发送带 `music-token` 的 `Cookie`，因此封面可以正常显示。旧版 MyGo Music 会忽略 `requestHeaders`，封面显示为占位图，播放、搜索、歌词和歌单不受影响。
 
 ## 封面
 
-插件的 `imageHeaders` 只对飞牛服务器的 `/music/api/v1/static/cover` 地址返回：
+`plugin.json` 里声明了：
 
-```js
-{ headers: { Cookie: "music-token=..." }, maxAge: 600 }
+```json
+"requestHeaders": [
+  {
+    "hosts": ["{setting:server}"],
+    "kinds": ["image"],
+    "headers": { "cookie": "music-token={storage:token}" }
+  }
+]
 ```
 
-封面 URL 本身不包含 token，所以保存的歌曲不会留下会话凭证；token 更新后，下一次询问就会使用新的值。MyGo Music 会把请求头发送给该封面域名及其子域，并在收到 401/403 时重新询问插件；插件会在这时校验会话，过期则重新登录。
+- `{setting:server}`：使用监听者填写的飞牛服务器 host。
+- `{storage:token}`：每次请求时从插件的登录存储里填入最新 token，token 更新后也会立即生效。
+- `kinds: ["image"]`：只用于封面；音频的 Cookie 由 `stream` 自己返回。
+- 封面 URL 本身不包含 token，所以保存的歌曲不会留下会话凭证。
+
+需要 MyGo Music 0.1.19 或更新版本。
 
 ## 开发
 
