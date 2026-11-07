@@ -63,15 +63,7 @@ function apiURL(path) {
 
 function coverURL(id) {
   if (!id) return "";
-  let url = apiURL("/static/cover") + "?coverId=" + encodeURIComponent(id);
-  const token = load("token");
-  if (token) {
-    // MyGo Music asks for covers itself, without a plugin's headers. The
-    // cookie rides in the URL's fragment, which browsers never send to the
-    // server; the app turns it into a Cookie header before the request.
-    url += "#mygo-cookie=" + encodeURIComponent("music-token=" + token);
-  }
-  return url;
+  return apiURL("/static/cover") + "?coverId=" + encodeURIComponent(id);
 }
 
 function deviceId() {
@@ -405,6 +397,34 @@ export function signOut() {
 export function account() {
   if (!load("token")) return null;
   return load("account") || null;
+}
+
+// MyGo Music asks a plugin for the headers to load a cover with, for a
+// service that keeps its pictures behind its session.
+export async function imageHeaders({ url }) {
+  let parsed, origin;
+  try {
+    parsed = new URL(url);
+    origin = serverOrigin();
+  } catch {
+    return null;
+  }
+  if (parsed.origin !== origin) return null;
+  if (!parsed.pathname.startsWith("/music/api/v1/static/cover")) return null;
+
+  if (!load("token")) {
+    try {
+      await ensureSession();
+    } catch {
+      return null;
+    }
+  }
+  const token = load("token");
+  if (!token) return null;
+  return {
+    headers: { Cookie: "music-token=" + token },
+    maxAge: 600,
+  };
 }
 
 export function setSetting({ key }) {

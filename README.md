@@ -55,35 +55,17 @@ Settings > Plugins > + > Show Plugins Folder
 
 - 密码会用 SHA-256 处理后发送，和网页版一致。
 - 播放地址是服务器上的原始文件地址，播放时带上会话 Cookie。
-- 专辑/艺术家/歌曲封面同样需要会话 Cookie。插件会在封面地址的 fragment 里带上 `#mygo-cookie=...`，并由附带的小补丁让 MyGo Music 把它转成 `Cookie` 请求头（同时从 URL 中移除）。应用补丁并重新构建 MyGo Music 后，封面即可正常显示。补丁只改封面下载函数，不影响播放或数据；不应用补丁也能使用，只是封面会显示为占位图。
+- 专辑/艺术家/歌曲封面同样需要会话 Cookie。MyGo Music 从上游 commit [`b192406`](https://github.com/egoist/mygo-music/commit/b19240642f0cc08ddad12376b29afe513d5eda96) 起支持插件的 `imageHeaders({url})`；插件会为飞牛服务器的封面返回带 `music-token` 的 `Cookie`，因此封面可以正常显示。旧版 MyGo Music 会忽略这个导出，封面显示为占位图，播放、搜索、歌词和歌单不受影响。
 
-## 封面支持（可选补丁）
+## 封面
 
-插件本身无法给 MyGo Music 的封面请求加请求头，因此附带了一个很小的 MyGo Music 补丁（基于 0.1.18 / main）：
+插件的 `imageHeaders` 只对飞牛服务器的 `/music/api/v1/static/cover` 地址返回：
 
-```sh
-cd mygo-music
-git apply /path/to/patches/mygo-cover-cookie.patch
-go test ./internal/music
-go test ./internal/app -run TestSizedKeepsCoverCookie
-go tool mygo build
+```js
+{ headers: { Cookie: "music-token=..." }, maxAge: 600 }
 ```
 
-补丁内容：
-
-- `internal/music/fetch.go`：读取封面 URL fragment 上的 `mygo-cookie`，作为 `Cookie` 请求头发送，并从实际请求 URL 中删除。
-- `internal/music/fetch_test.go`：验证 Cookie 被正确转换，且 fragment 不会发送给服务器。
-- `internal/app/artwork_test.go`：验证 fragment 在 `sized` 追加 `#<px>` 后仍然保留。
-
-应用后，插件返回的封面地址形如：
-
-```
-https://fnos.example.com/music/api/v1/static/cover?coverId=...#mygo-cookie=music-token%3D...
-```
-
-MyGo Music 会把 `mygo-cookie` 转成 `Cookie: music-token=...` 后再请求封面。fragment 不会发送给服务器，所以即使没有应用补丁，也不会把会话 token 暴露在服务器日志或查询参数里。
-
-上游提交：[egoist/mygo-music#28](https://github.com/egoist/mygo-music/issues/28)。该仓库目前设置为只允许协作者创建 PR，因此先以 issue + patch 的形式提交；如果之后开放 PR，可直接使用 `yusgsysh/mygo-music` 的 `cover-url-cookie` 分支。
+封面 URL 本身不包含 token，所以保存的歌曲不会留下会话凭证；token 更新后，下一次询问就会使用新的值。MyGo Music 会把请求头发送给该封面域名及其子域，并在收到 401/403 时重新询问插件。
 
 ## 开发
 
